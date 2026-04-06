@@ -5,71 +5,68 @@
 -- Run via: task cdb:setup
 --
 -- After running, configure the connector with:
---   connection_string: oracle://c##testdb:testdb123@localhost:1521/FREE
+--   connection_string: oracle://c%23%23testdb:testdb123@localhost:1521/FREE
 --   pdb_name: TESTPDB
 
-ALTER SESSION SET "_ORACLE_SCRIPT" = TRUE;
+-- ============================================================================
+-- STAGE 1: Create C##TESTDB in CDB$ROOT
+-- ============================================================================
+
+CREATE USER IF NOT EXISTS c##testdb IDENTIFIED BY testdb123 CONTAINER=ALL;
+/
+
+GRANT CONNECT TO c##testdb CONTAINER=ALL;
+/
+GRANT DBA TO c##testdb CONTAINER=ALL;
+/
+GRANT LOGMINING TO c##testdb CONTAINER=ALL;
+/
+GRANT SELECT ANY DICTIONARY TO c##testdb CONTAINER=ALL;
+/
+GRANT UNLIMITED TABLESPACE TO c##testdb CONTAINER=ALL;
+/
+GRANT EXECUTE ON SYS.DBMS_LOGMNR TO c##testdb CONTAINER=ALL;
+/
+GRANT EXECUTE ON SYS.DBMS_LOGMNR_D TO c##testdb CONTAINER=ALL;
+/
+ALTER USER c##testdb SET CONTAINER_DATA = ALL CONTAINER = CURRENT;
+/
+GRANT SET CONTAINER TO c##testdb CONTAINER=ALL;
 /
 
 -- ============================================================================
--- STAGE 1: Create C##TESTDB - application user for CDB-mode connector
+-- STAGE 2: Create C##RPCN in CDB$ROOT
 -- ============================================================================
-BEGIN
-    DBMS_OUTPUT.PUT_LINE('=== STAGE 1: Creating C##TESTDB ===');
-END;
+
+CREATE USER IF NOT EXISTS c##rpcn IDENTIFIED BY rpcn123 CONTAINER=ALL;
 /
 
-DECLARE
-    user_exists NUMBER;
-BEGIN
-    SELECT COUNT(*) INTO user_exists FROM cdb_users WHERE username = 'C##TESTDB' AND con_id = 1;
-
-    IF user_exists = 0 THEN
-        EXECUTE IMMEDIATE 'CREATE USER c##testdb IDENTIFIED BY testdb123 CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT CONNECT TO c##testdb CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT DBA TO c##testdb CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT LOGMINING TO c##testdb CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT SELECT ANY DICTIONARY TO c##testdb CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO c##testdb CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT EXECUTE ON SYS.DBMS_LOGMNR TO c##testdb CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT EXECUTE ON SYS.DBMS_LOGMNR_D TO c##testdb CONTAINER=ALL';
-        DBMS_OUTPUT.PUT_LINE('Common user C##TESTDB created');
-    ELSE
-        DBMS_OUTPUT.PUT_LINE('Common user C##TESTDB already exists');
-    END IF;
-END;
+GRANT CONNECT TO c##rpcn CONTAINER=ALL;
+/
+GRANT RESOURCE TO c##rpcn CONTAINER=ALL;
+/
+GRANT UNLIMITED TABLESPACE TO c##rpcn CONTAINER=ALL;
 /
 
 -- ============================================================================
--- STAGE 2: Create C##RPCN - checkpoint cache schema for CDB-mode connector
+-- STAGE 3: Unlock C##TESTDB in TESTPDB
+-- Container switching must happen at SQL*Plus level, not inside PL/SQL blocks.
 -- ============================================================================
-BEGIN
-    DBMS_OUTPUT.PUT_LINE('=== STAGE 2: Creating C##RPCN ===');
-END;
+
+ALTER SESSION SET CONTAINER = TESTPDB;
 /
 
-DECLARE
-    user_exists NUMBER;
-BEGIN
-    SELECT COUNT(*) INTO user_exists FROM cdb_users WHERE username = 'C##RPCN' AND con_id = 1;
+ALTER USER c##testdb ACCOUNT UNLOCK;
+/
 
-    IF user_exists = 0 THEN
-        EXECUTE IMMEDIATE 'CREATE USER c##rpcn IDENTIFIED BY rpcn123 CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT CONNECT, RESOURCE TO c##rpcn CONTAINER=ALL';
-        EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO c##rpcn CONTAINER=ALL';
-        DBMS_OUTPUT.PUT_LINE('Common user C##RPCN created');
-    ELSE
-        DBMS_OUTPUT.PUT_LINE('Common user C##RPCN already exists');
-    END IF;
-END;
+ALTER SESSION SET CONTAINER = CDB$ROOT;
 /
 
 BEGIN
     DBMS_OUTPUT.PUT_LINE('');
     DBMS_OUTPUT.PUT_LINE('=== CDB user setup complete ===');
-    DBMS_OUTPUT.PUT_LINE('Connection string : oracle://c##testdb:testdb123@localhost:1521/FREE');
-    DBMS_OUTPUT.PUT_LINE('pdb_name config   : TESTPDB');
-    DBMS_OUTPUT.PUT_LINE('Checkpoint cache  : C##RPCN.CDC_CHECKPOINT_TESTPDB (auto-created by connector)');
-    DBMS_OUTPUT.PUT_LINE('Tables monitored  : TESTDB.USERS, TESTDB.PRODUCTS, TESTDB.CART (in TESTPDB)');
+    DBMS_OUTPUT.PUT_LINE('connection_string : oracle://c%23%23testdb:testdb123@localhost:1521/FREE');
+    DBMS_OUTPUT.PUT_LINE('pdb_name          : TESTPDB');
+    DBMS_OUTPUT.PUT_LINE('Checkpoint cache  : C##RPCN.CDC_CHECKPOINT_TESTPDB (auto-created)');
 END;
 /
