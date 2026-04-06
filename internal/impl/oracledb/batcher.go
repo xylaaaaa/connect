@@ -10,7 +10,6 @@ package oracledb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -32,8 +31,7 @@ type batchPublisher struct {
 	checkpoint *checkpoint.Capped[replication.SCN]
 	msgChan    chan asyncMessage
 	cacheSCN   func(ctx context.Context, scn replication.SCN) error
-	schemas    *schemaCache
-	db         *sql.DB
+	schemas *schemaCache
 
 	log     *service.Logger
 	shutSig *shutdown.Signaller
@@ -140,7 +138,7 @@ func (b *batchPublisher) Publish(ctx context.Context, m *replication.MessageEven
 			b.schemas.seedFromColumnMeta(table, m.ColumnMeta)
 		}
 		eventKeys := mapKeys(m.Data)
-		s, typeInfo, sErr := b.schemas.schemaForEvent(ctx, b.db, table, eventKeys)
+		s, typeInfo, sErr := b.schemas.schemaForEvent(ctx, table, eventKeys)
 		if sErr != nil {
 			b.log.Warnf("Failed to refresh schema for %s.%s: %v", m.Schema, m.Table, sErr)
 		}

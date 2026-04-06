@@ -76,6 +76,10 @@ func NewMiner(db *sql.DB, userTables []replication.UserTable, publisher replicat
 		}
 		buf.WriteString(")))")
 	}
+	if cfg.PDBName != "" {
+		buf.WriteString(fmt.Sprintf(" AND SRC_CON_NAME = '%s'", strings.ReplaceAll(cfg.PDBName, "'", "''")))
+	}
+
 	logMinerQuery := fmt.Sprintf(`
 		SELECT
 			SCN,
@@ -429,7 +433,10 @@ func (lm *LogMiner) loadLOBColumnTypes(ctx context.Context, conn *sql.Conn) erro
 		return nil
 	}
 
-	var qb strings.Builder
+	var (
+		qb     strings.Builder
+		qbArgs []any
+	)
 	qb.WriteString(`SELECT OWNER, TABLE_NAME, COLUMN_NAME, DATA_TYPE FROM ALL_TAB_COLUMNS WHERE DATA_TYPE IN ('CLOB', 'BLOB', 'NCLOB') AND (`)
 	for i, t := range lm.tables {
 		if i > 0 {
@@ -441,7 +448,7 @@ func (lm *LogMiner) loadLOBColumnTypes(ctx context.Context, conn *sql.Conn) erro
 	}
 	qb.WriteString(")")
 
-	rows, err := conn.QueryContext(ctx, qb.String())
+	rows, err := conn.QueryContext(ctx, qb.String(), qbArgs...)
 	if err != nil {
 		return fmt.Errorf("querying LOB column types: %w", err)
 	}
